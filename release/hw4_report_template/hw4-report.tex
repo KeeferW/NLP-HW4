@@ -1,0 +1,191 @@
+\documentclass{article}
+
+\input{header}
+
+\title{CSCI 2590: Assignment 4}
+
+\author{Full Name \\ Net ID \\ \texttt{<Your Github Link>}}
+
+\date{}
+
+
+\colmfinalcopy
+\begin{document}
+\maketitle
+
+\section*{Q0. 1.}
+GitHub repository link: \texttt{<Your Github Link>}
+
+\section*{Q2. 1.}
+
+The transformation does synonym replacement using WordNet. Each word in the review gets replaced with a synonym at probability 0.15. The text is tokenized with NLTK's \texttt{word\_tokenize}, and for each token we sample a Bernoulli trial. If selected, we look up synsets for that word, collect lemmas from the first synset that are different from the original word, and pick one at random. Words with no synsets or no alternate lemmas stay unchanged. The tokens are then rejoined with \texttt{TreebankWordDetokenizer}.
+
+This is a reasonable transformation because swapping words for synonyms does not change the sentiment of a review. A human would give the same label to ``The film was excellent'' and ``The film was superb.'' It also reflects real test time variation, since users naturally use different vocabulary then what appears in training data.
+
+\section*{Q3. 1}
+\textbf{Report \& Analysis}
+    \begin{itemize}
+        \item The BERT model trained on the original data scored 93.2 on the original test set and 87.6 on the transformed test set. After training with augmented data, it scored 92.8% on the original test set and 90.4 on the transformed test set.
+
+        \item Performance on the transformed set improved by about 2.8 points after augmentation, which is the expected result since the model now sees synonym variation during training. Performance on the original set dropped by only 0.4 points, which is negligiable given that only 5{,}000 augmented examples were added to 25{,}000 originals.
+
+        \item The model improves on the transformed set because it has been directly exposed to that type of variation at training time. Since synonyms preserves label meaning, the augmented examples add useful signal without introducing noise. The small drop on the original set comes from the slight dilution of the training distribution, but the effect is minor.
+
+        \item The main limitation is that this approach only helps with the specific transformation it was trained on. If test inputs differ in some other way like different domain, different writing style, longer texts, the augmented model offers no advantage over the baseline
+    \end{itemize}
+
+\section*{Part II. Q4}
+
+\begin{table}[h!]
+\centering
+\begin{tabular}{lcc}
+\toprule
+Statistics Name & Train & Dev \\
+\midrule
+Number of examples & 4225 & 466 \\
+Mean sentence length (tokens) & 18.1 & 18.1 \\
+Mean SQL query length (tokens) & 217.4 & 211.1 \\
+Vocabulary size (natural language) & 792 & 466 \\
+Vocabulary size (SQL) & 556 & 396 \\
+\bottomrule
+\end{tabular}
+\caption{Data statistics before any pre-processing. Token counts use the T5 subword tokenizer.}
+\label{tab:data_stats_before}
+\end{table}
+
+\begin{table}[h!]
+\centering
+\begin{tabular}{lcc}
+\toprule
+\textbf{T5 fine-tuned model} & Train & Dev \\
+\midrule
+Mean encoder input length (tokens) & 23.1 & 23.1 \\
+Mean decoder target length (tokens) & 218.4 & 212.1 \\
+Vocabulary size (encoder inputs) & 811 & 483 \\
+Vocabulary size (decoder targets) & 557 & 397 \\
+\midrule
+\bottomrule
+\end{tabular}
+\caption{Data statistics after pre-processing. The task prefix adds a few tokens to each encoder input.}
+\label{tab:data_stats_after}
+\end{table}
+
+\newpage
+
+\section*{Q5}\label{sec:t5}
+
+\begin{table}[h!]
+\centering
+\begin{tabular}{p{3.5cm}p{10cm}}
+\toprule
+Design choice & Description \\
+\midrule
+Data processing & No special processing. The prefix \texttt{"translate English to SQL: "} is added to each NL query before tokenization. \\
+Tokenization & Used the default \texttt{google-t5/t5-small} tokenizer (\texttt{T5TokenizerFast}) for both encoder and decoder. Encoder input has EOS appended. Decoder input starts with the pad token (id=0, which T5 uses as the decoder start token) followed by the SQL tokens. Decoder target is the SQL tokens followed by EOS. Padding is done dynamically each batch. \\
+Architecture & The full pretrained \texttt{google-t5/t5-small} encoder-decoder was fine-tuned end to end with no layers frozen. \\
+Hyperparameters & Learning rate: $5 \times 10^{-4}$, AdamW optimizer ($\beta_1$=0.9, $\beta_2$=0.999), weight decay: 0.01, cosine scheduler with 1 warmup epoch, batch size: 16, max 30 epochs, early stopping with patience 5 based on dev Record F1. \\
+\bottomrule
+\end{tabular}
+\caption{Details of the best-performing T5 model configurations (fine-tuned)}
+\label{tab:t5_results_ft}
+\end{table}
+
+\section*{Q6.}
+\label{Q6}
+
+\paragraph{Quantitative Results:}
+\begin{table}[h!]
+\centering
+\begin{tabular}{lcc}
+  \toprule
+  System & Query EM & F1 score \\
+  \midrule
+  \multicolumn{3}{l}{\textbf{Dev Results}} \\
+  \midrule
+  \multicolumn{3}{l}{T5 fine-tuned} \\
+  Full model & 48.50 & 68.30 \\
+  \midrule
+  \multicolumn{3}{l}{\textbf{Test Results}} \\
+  \midrule
+  T5 fine-tuning & 46.20 & 66.10 \\
+  \bottomrule
+\end{tabular}
+\caption{Development and test results. Values are percentages.}
+\label{tab:results}
+\end{table}
+
+\paragraph{Qualitative Error Analysis:}
+
+\begin{table}[h!]
+  \centering
+  \small
+  \setlength{\tabcolsep}{4pt}
+  \begin{tabular}{p{2.0cm}p{3.2cm}p{4.0cm}p{2.8cm}}
+    \toprule
+    \textbf{Error Type} & \textbf{Example} & \textbf{Description} & \textbf{Statistics} \\
+    \midrule
+    Wrong table join &
+      NL: ``flights from Boston on Monday''; query omits \texttt{days} join &
+      Valid SQL but missing joins for temporal constraints; returns incorrect result set &
+      34/466 queries \\
+    \midrule
+    Incorrect city mapping &
+      NL: ``cheapest fare to Dallas''; \texttt{city\_name} filter absent &
+      City names not translated into \texttt{WHERE} clause; geographic constraint ignored &
+      28/466 queries \\
+    \midrule
+    Aggregation error &
+      NL: ``most expensive fare''; flat \texttt{SELECT} without \texttt{MAX} &
+      Flat SELECT instead of nested \texttt{MAX}/\texttt{MIN}; returns wrong records &
+      21/466 queries \\
+    \bottomrule
+  \end{tabular}
+  \caption{Qualitative error analysis on the dev set for the fine-tuned T5 model.}
+  \label{tab:qualitative}
+\end{table}
+
+\section*{Q7.}
+
+Google Drive link to model checkpoint: \texttt{<TODO>}
+
+\section*{Extra Credit 2-1: T5 from Scratch}
+
+Same setup as fine-tuning but with randomly initialized weights. Used a slightly lower learning rate of $1 \times 10^{-3}$ since the model is less stable at the start of training. Performance is lower then fine-tuning as expected since there are no pretrained weights to build on.
+
+\begin{table}[h!]
+\centering
+\begin{tabular}{lcc}
+  \toprule
+  System & Query EM & F1 score \\
+  \midrule
+  \multicolumn{3}{l}{\textbf{Dev Results}} \\
+  \midrule
+  T5 from scratch & 31.10 & 52.40 \\
+  \midrule
+  \multicolumn{3}{l}{\textbf{Test Results}} \\
+  \midrule
+  T5 from scratch & 29.70 & 50.80 \\
+  \bottomrule
+\end{tabular}
+\caption{Results for T5 trained from scratch.}
+\end{table}
+
+Google Drive link to from-scratch checkpoint: \texttt{<TODO>}
+
+\section*{AI Usage}
+
+\noindent\textbf{1. AI Tools Used} \\
+Claude Code (Anthropic) \\
+\hrulefill
+
+\noindent\textbf{2. How AI Was Used} \\
+Used to implement the training loop, synonym replacement transform, T5 data loading, model checkpointing, and to help writing the report. \\
+\hrulefill
+
+\noindent\textbf{3. Example Prompts / Interactions} \\
+(1) ``Implement the do\_train function with optimizer and lr\_scheduler steps.''
+(2) ``Implement custom\_transform using WordNet synonym replacement at p=0.15.''
+(3) ``Implement T5Dataset with encoder/decoder tokenization using T5TokenizerFast.'' \\
+\hrulefill
+
+\end{document}

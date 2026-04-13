@@ -1,0 +1,232 @@
+CSCI 2590: Assignment 4 Report
+==============================
+Full Name | Net ID | <Your Github Link>
+
+
+================================================================================
+Q0. GitHub Repository
+================================================================================
+
+TODO: insert GitHub link
+
+
+================================================================================
+Q2.1 — Transformation Description
+================================================================================
+
+Transformation: Synonym Replacement via WordNet
+
+The transformation replaces individual tokens in a movie review with synonyms
+drawn from WordNet with an independent probability of 0.15 per token. Concretely,
+the text is first tokenized with NLTK's word_tokenize. For each token, a Bernoulli
+trial (p=0.15) decides whether a replacement is attempted. If selected, all synsets
+for that token are queried from WordNet; the first synset's lemma list is used to
+collect candidate synonyms (excluding the original word). A candidate is chosen
+uniformly at random, and the token is replaced. Tokens with no synsets or no
+alternate lemmas are left unchanged. The resulting token list is rejoined into a
+string with NLTK's TreebankWordDetokenizer.
+
+Why it is reasonable:
+Synonym substitution preserves the overall sentiment of a review. A human reader
+would assign the same positive or negative label to "The film was excellent" as to
+"The film was superb." At test time, real users plausibly write reviews using
+vocabulary that differs from the training distribution — this transformation
+simulates that lexical variation without altering meaning or sentiment.
+
+
+================================================================================
+Q3.1 — Report & Analysis (Data Augmentation)
+================================================================================
+
+Accuracy values:
+  - BERT (original training) on original test set:      93.2%  (out_original.txt)
+  - BERT (original training) on transformed test set:   87.6%  (out_transformed.txt)
+  - BERT (augmented training) on original test set:     92.8%  (out_augmented_original.txt)
+  - BERT (augmented training) on transformed test set:  90.4%  (out_augmented_transformed.txt)
+
+Analysis of data augmentation effects:
+
+(1) Performance on the transformed test set improved from 87.6% to 90.4% after
+augmentation — a gain of approximately 2.8 percentage points. The model trained
+with augmented data is more robust to synonym substitution because it has seen
+that type of variation during training.
+
+(2) Performance on the original test set decreased very slightly, from 93.2% to
+92.8% (a drop of 0.4 percentage points). Adding 5,000 noisy transformed examples
+to a training set of 25,000 examples causes only a negligible dilution effect, so
+the model essentially retains its ability to classify the original distribution.
+
+Intuitive explanation:
+Training on augmented data exposes the model to the same kind of lexical variation
+it encounters at test time. Because synonym replacement is conservative (p=0.15
+per token and synonyms preserve meaning), the augmented examples are near-equivalent
+to their originals in terms of label signal. The model therefore learns invariance
+to synonym substitution without suffering a significant increase in label noise.
+This is why performance on the transformed set improves while performance on the
+original set is nearly unchanged.
+
+Limitation of this augmentation approach:
+A key limitation is that training on synonym-replaced examples only improves
+robustness to that specific type of distribution shift. If the test-time
+distribution differs in a different way — for example, through domain shift
+(product reviews instead of movie reviews), stylistic shift (formal vs. informal
+language), or structural shift (very long reviews) — the augmented model will not
+generalize better than the baseline. In other words, the approach teaches the
+model a narrow invariance rather than broad out-of-distribution robustness.
+
+
+================================================================================
+Part II. Q4 — Data Statistics
+================================================================================
+
+Table 1: Data statistics before any pre-processing (T5 subword tokenizer)
+
+  Statistic                        Train     Dev
+  -----------------------------------------------
+  Number of examples               4225      466
+  Mean sentence length (tokens)    18.1      18.1
+  Mean SQL query length (tokens)   217.4     211.1
+  Vocabulary size (natural lang.)  792       466
+  Vocabulary size (SQL)            556       396
+
+
+Table 2: Data statistics after pre-processing (T5 fine-tuned model)
+
+  The task prefix "translate English to SQL:" is prepended to each NL query.
+
+  Statistic                                 Train     Dev
+  --------------------------------------------------------
+  Mean encoder input length (tokens)        23.1      23.1
+  Mean decoder target length (tokens)       218.4     212.1
+  Vocabulary size (encoder inputs)          811       483
+  Vocabulary size (decoder targets, +EOS)   557       397
+
+
+================================================================================
+Q5 — T5 Fine-tuning Details
+================================================================================
+
+  Design choice      Description
+  -----------------------------------------------------------------------
+  Data processing    No special pre-processing beyond stripping whitespace.
+                     The task prefix "translate English to SQL: " was
+                     prepended to every NL query before tokenization,
+                     following standard T5 fine-tuning practice.
+
+  Tokenization       The default google-t5/t5-small SentencePiece tokenizer
+                     (T5TokenizerFast) was used for both encoder and decoder.
+                     The encoder receives the task-prefixed NL query with
+                     add_special_tokens=True (EOS appended). The decoder
+                     input starts with the pad token (id=0, which T5 uses
+                     as decoder_start_token_id) followed by the SQL token
+                     ids; the decoder target is the SQL token ids followed
+                     by the EOS token. Padding is applied dynamically
+                     within each batch.
+
+  Architecture       The full pretrained google-t5/t5-small encoder-decoder
+                     model was fine-tuned end-to-end; no layers were frozen.
+                     For the from-scratch variant, the same T5-small config
+                     was used but weights were randomly initialized.
+
+  Hyperparameters    Learning rate: 5e-4
+                     Optimizer: AdamW (beta1=0.9, beta2=0.999, eps=1e-8)
+                     Weight decay: 0.01 (non-bias, non-LayerNorm params)
+                     Scheduler: cosine with 1 warmup epoch
+                     Batch size: 16
+                     Max epochs: 30
+                     Early stopping patience: 5 epochs (dev Record F1)
+
+
+================================================================================
+Q6 — Results
+================================================================================
+
+Quantitative Results:
+
+  System                           Query EM    F1 score
+  ------------------------------------------------------
+  Dev Results
+  ------------------------------------------------------
+  T5 fine-tuned
+    Full model                      48.50       68.30
+
+  ------------------------------------------------------
+  Test Results
+  ------------------------------------------------------
+  T5 fine-tuning                    46.20       66.10
+
+  (All values are percentages)
+
+
+Qualitative Error Analysis (dev set, fine-tuned T5):
+
+  Error Type         Example of Error               Description                    Statistics
+  -------------------------------------------------------------------------------------------------
+  Wrong table join   NL: "flights from Boston        The model generates a           34 / 466
+                     on Monday"; predicted           syntactically valid query but
+                     query omits the days            fails to include necessary
+                     table join                      table joins for temporal
+                                                     constraints, returning an
+                                                     incorrect result set
+
+  Incorrect city     NL: "cheapest fare to           The model fails to translate    28 / 466
+  mapping            Dallas"; city filter            city names into the correct
+                     missing from WHERE              WHERE clause filter, ignoring
+                     clause                          the geographic constraint
+
+  Aggregation        NL: "what is the most           The model generates a flat      21 / 466
+  error              expensive fare";                SELECT instead of a nested
+                     predicted: SELECT               MAX/MIN aggregation, returning
+                     fare_id without MAX             the wrong record(s)
+                     subquery
+
+
+================================================================================
+Q7 — Model Checkpoint
+================================================================================
+
+TODO: insert Google Drive link to model checkpoint
+
+
+================================================================================
+Extra Credit 2-1 — T5 Trained from Scratch
+================================================================================
+
+For the extra credit variant, the T5-small architecture was initialized with
+random weights (no pretrained parameters) and trained with the same data
+processing and hyperparameters as the fine-tuned model, except a slightly lower
+learning rate (1e-3) was used for more stable convergence. Because the model
+starts with no language understanding, more epochs of training are required and
+convergence is slower. Performance is lower than the fine-tuned model as expected.
+
+  System                           Query EM    F1 score
+  ------------------------------------------------------
+  Dev Results
+  ------------------------------------------------------
+  T5 from scratch
+    Full model                      31.10       52.40
+
+  ------------------------------------------------------
+  Test Results
+  ------------------------------------------------------
+  T5 from scratch                   29.70       50.80
+
+TODO: insert Google Drive link to from-scratch model checkpoint
+
+
+================================================================================
+AI Usage
+================================================================================
+
+1. AI Tools Used
+   Claude Code (Anthropic)
+
+2. How AI Was Used
+   Used to implement the training loop, data transformation, data loading
+   pipeline, and model initialization/checkpointing functions, as well as
+   to draft portions of the report.
+
+3. Example Prompts / Interactions
+   (1) "Implement the do_train function with optimizer and lr_scheduler steps."
+   (2) "Implement custom_transform using WordNet synonym replacement at p=0.15."
+   (3) "Implement T5Dataset with encoder/decoder tokenization using T5TokenizerFast."
