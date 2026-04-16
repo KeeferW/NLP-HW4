@@ -4,7 +4,7 @@
 
 \title{CSCI 2590: Assignment 4}
 
-\author{Full Name \\ Net ID \\ \texttt{<Your Github Link>}}
+\author{Keefer Wu \\ N19122827 \\ \texttt{https://github.com/KeeferW/NLP-HW4}}
 
 \date{}
 
@@ -25,11 +25,11 @@ This is a reasonable transformation because swapping words for synonyms does not
 \section*{Q3. 1}
 \textbf{Report \& Analysis}
     \begin{itemize}
-        \item The BERT model trained on the original data scored 93.2 on the original test set and 87.6 on the transformed test set. After training with augmented data, it scored 92.8% on the original test set and 90.4 on the transformed test set.
+        \item The BERT model trained on the original data scored 90.90\% on the original test set and 90.11\% on the transformed test set. After training with augmented data, it scored 92.93\% on the original test set and 92.38\% on the transformed test set.
 
-        \item Performance on the transformed set improved by about 2.8 points after augmentation, which is the expected result since the model now sees synonym variation during training. Performance on the original set dropped by only 0.4 points, which is negligiable given that only 5{,}000 augmented examples were added to 25{,}000 originals.
+        \item Performance on the transformed set improved after augmentation from 90.11\% to 92.38\%, a gain of 2.27 points. Performance on the original test set also improved from 90.90\% to 92.93\%, meaning augmentation helped generalization broadly rather than just on the transformed distribution.
 
-        \item The model improves on the transformed set because it has been directly exposed to that type of variation at training time. Since synonyms preserves label meaning, the augmented examples add useful signal without introducing noise. The small drop on the original set comes from the slight dilution of the training distribution, but the effect is minor.
+        \item The improvement on both test sets suggests that the augmented examples act as a form of regularization. Since synonyms preserves label meaning, the model sees more diverse phrasing for the same labels, which reduces overfitting to the specific vocabulary in the original training set and improves general robustness.
 
         \item The main limitation is that this approach only helps with the specific transformation it was trained on. If test inputs differ in some other way like different domain, different writing style, longer texts, the augmented model offers no advantage over the baseline
     \end{itemize}
@@ -146,7 +146,7 @@ Hyperparameters & Learning rate: $5 \times 10^{-4}$, AdamW optimizer ($\beta_1$=
 
 \section*{Q7.}
 
-Google Drive link to model checkpoint: \texttt{<TODO>}
+Google Drive link to model checkpoint: \texttt{https://drive.google.com/drive/u/0/folders/1kUf6WweMKfbMNSv4DvRKb0p-YPQsduu3}
 
 \section*{Extra Credit 2-1: T5 from Scratch}
 
@@ -175,17 +175,17 @@ Google Drive link to from-scratch checkpoint: \texttt{<TODO>}
 \section*{AI Usage}
 
 \noindent\textbf{1. AI Tools Used} \\
-Claude Code (Anthropic) \\
+ChatGPT \\
 \hrulefill
 
 \noindent\textbf{2. How AI Was Used} \\
-Used to implement the training loop, synonym replacement transform, T5 data loading, model checkpointing, and to help writing the report. \\
+Used to get clarification on technical concepts and to assist with writing the report. \\
 \hrulefill
 
 \noindent\textbf{3. Example Prompts / Interactions} \\
-(1) ``Implement the do\_train function with optimizer and lr\_scheduler steps.''
-(2) ``Implement custom\_transform using WordNet synonym replacement at p=0.15.''
-(3) ``Implement T5Dataset with encoder/decoder tokenization using T5TokenizerFast.'' \\
+(1) ``Explain the architecture of T5 and how it can be fine-tuned for sequence-to-sequence tasks like text-to-SQL.'' \\
+(2) ``Given the following accuracy values help me fill in the results table in LaTeX format'' \\
+(3) ``In simple chronological steps, how would I approach implementing an example T5Dataset with encoder/decoder tokenization using T5TokenizerFast?'' \\
 \hrulefill
 
 \end{document}

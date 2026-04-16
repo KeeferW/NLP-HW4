@@ -42,11 +42,18 @@ def custom_transform(example):
     new_tokens = []
 
     for word in tokens:
-        if random.random() < 0.15:
+        if (random.random() < 0.15
+                and word.isalpha()
+                and len(word) > 4):
             synsets = wordnet.synsets(word)
             if synsets:
                 lemmas = synsets[0].lemmas()
-                candidates = [l.name().replace("_", " ") for l in lemmas if l.name().lower() != word.lower()]
+                candidates = [
+                    l.name() for l in lemmas
+                    if l.name().lower() != word.lower()
+                    and "_" not in l.name()
+                    and l.name().isalpha()
+                ]
                 if candidates:
                     new_tokens.append(random.choice(candidates))
                     continue
