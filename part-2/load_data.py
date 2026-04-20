@@ -27,13 +27,31 @@ class T5Dataset(Dataset):
 
         data = []
 
+        schema = (
+            "tables: flight(flight_id,from_airport,to_airport,airline_code,departure_time,arrival_time,flight_days,stops), "
+            "airport(airport_code,airport_name,state_code), "
+            "airport_service(city_code,airport_code), "
+            "city(city_code,city_name,state_code), "
+            "airline(airline_code,airline_name), "
+            "fare(fare_id,from_airport,to_airport,fare_airline,one_direction_cost,round_trip_cost), "
+            "fare_basis(fare_basis_code,class_type,economy,discounted,night), "
+            "flight_fare(flight_id,fare_id), "
+            "days(days_code,day_name), "
+            "date_day(month_number,day_number,year,day_name), "
+            "time_interval(period,begin_time,end_time), "
+            "ground_service(city_code,airport_code,transport_type), "
+            "aircraft(aircraft_code,aircraft_description,manufacturer), "
+            "state(state_code,state_name), "
+            "restriction(restriction_code,stopovers,minimum_stay,maximum_stay)"
+        )
+
         if split != 'test':
             sql_path = os.path.join(data_folder, f'{split}.sql')
             sql_lines = load_lines(sql_path)
 
             for nl, sql in zip(nl_lines, sql_lines):
                 encoder_ids = tokenizer.encode(
-                    "translate English to SQL: " + nl,
+                    "translate English to SQL: " + schema + " | " + nl,
                     add_special_tokens=True
                 )
 
@@ -54,7 +72,7 @@ class T5Dataset(Dataset):
         else:
             for nl in nl_lines:
                 encoder_ids = tokenizer.encode(
-                    "translate English to SQL: " + nl,
+                    "translate English to SQL: " + schema + " | " + nl,
                     add_special_tokens=True
                 )
                 bos_id = tokenizer.pad_token_id

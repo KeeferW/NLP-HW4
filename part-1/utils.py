@@ -38,13 +38,29 @@ def custom_transform(example):
     ################################
     ##### YOUR CODE BEGINGS HERE ###
 
+    QWERTY_NEIGHBORS = {
+        'a': 'qwsz', 'b': 'vghn', 'c': 'xdfv', 'd': 'srfce', 'e': 'wsdr',
+        'f': 'drtgc', 'g': 'ftyh', 'h': 'gyuj', 'i': 'ujko', 'j': 'huik',
+        'k': 'jiol', 'l': 'kop', 'm': 'njk', 'n': 'bhjm', 'o': 'iklp',
+        'p': 'ol', 'q': 'wa', 'r': 'edft', 's': 'awedxz', 't': 'rfgy',
+        'u': 'yhji', 'v': 'cfgb', 'w': 'qase', 'x': 'zsdc', 'y': 'tghu',
+        'z': 'asx'
+    }
+
+    def add_typo(word):
+        chars = list(word.lower())
+        idx = random.randint(0, len(chars) - 1)
+        c = chars[idx]
+        if c in QWERTY_NEIGHBORS:
+            chars[idx] = random.choice(QWERTY_NEIGHBORS[c])
+        return ''.join(chars)
+
     tokens = word_tokenize(example["text"])
     new_tokens = []
 
     for word in tokens:
-        if (random.random() < 0.15
-                and word.isalpha()
-                and len(word) > 4):
+        # synonym replacement
+        if random.random() < 0.15 and word.isalpha() and len(word) > 4:
             synsets = wordnet.synsets(word)
             if synsets:
                 lemmas = synsets[0].lemmas()
@@ -57,6 +73,10 @@ def custom_transform(example):
                 if candidates:
                     new_tokens.append(random.choice(candidates))
                     continue
+        # typo injection
+        if random.random() < 0.50 and word.isalpha() and len(word) > 3:
+            new_tokens.append(add_typo(word))
+            continue
         new_tokens.append(word)
 
     example["text"] = TreebankWordDetokenizer().detokenize(new_tokens)

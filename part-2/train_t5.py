@@ -161,7 +161,9 @@ def eval_epoch(args, model, dev_loader, gt_sql_pth, model_sql_path, gt_record_pa
                 input_ids=encoder_input,
                 attention_mask=encoder_mask,
                 decoder_input_ids=initial_decoder_inputs,
-                max_new_tokens=200,
+                max_new_tokens=350,
+                num_beams=4,
+                early_stopping=True,
             )
 
             for seq in generated:
@@ -197,7 +199,9 @@ def test_inference(args, model, test_loader, model_sql_path, model_record_path):
                 input_ids=encoder_input,
                 attention_mask=encoder_mask,
                 decoder_input_ids=initial_decoder_inputs,
-                max_new_tokens=200,
+                max_new_tokens=350,
+                num_beams=4,
+                early_stopping=True,
             )
 
             for seq in generated:

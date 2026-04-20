@@ -4,7 +4,7 @@
 
 \title{CSCI 2590: Assignment 4}
 
-\author{Keefer Wu \\ N19122827 \\ \texttt{https://github.com/KeeferW/NLP-HW4}}
+\author{Keefer Wu \\ N19122827 \\ \texttt{https://github.com/KeeferW}}
 
 \date{}
 
@@ -14,7 +14,7 @@
 \maketitle
 
 \section*{Q0. 1.}
-GitHub repository link: \texttt{<Your Github Link>}
+GitHub repository link: \texttt{https://github.com/KeeferW/NLP-HW4}
 
 \section*{Q2. 1.}
 
@@ -25,13 +25,13 @@ This is a reasonable transformation because swapping words for synonyms does not
 \section*{Q3. 1}
 \textbf{Report \& Analysis}
     \begin{itemize}
-        \item The BERT model trained on the original data scored 90.90\% on the original test set and 90.11\% on the transformed test set. After training with augmented data, it scored 92.93\% on the original test set and 92.38\% on the transformed test set.
+        \item The BERT model trained on the original data scored 90.90\% on the original test set and 83.82\% on the transformed test set. After training with augmented data, it scored 92.93\% on the original test set and 86.59\% on the transformed test set.
 
-        \item Performance on the transformed set improved after augmentation from 90.11\% to 92.38\%, a gain of 2.27 points. Performance on the original test set also improved from 90.90\% to 92.93\%, meaning augmentation helped generalization broadly rather than just on the transformed distribution.
+        \item Performance on the transformed set improved after augmentation from 83.82\% to 86.59\%, a gain of 2.77 points. The drop from original to transformed accuracy was 7.08\% for the base model versus 6.34\% for the augmented model, showing the augmented model is more robust to the transformation.
 
-        \item The improvement on both test sets suggests that the augmented examples act as a form of regularization. Since synonyms preserves label meaning, the model sees more diverse phrasing for the same labels, which reduces overfitting to the specific vocabulary in the original training set and improves general robustness.
+        \item The improvement on the transformed set suggests that exposing the model to synonym-replaced and typo-perturbed examples during training reduces its sensitivity to those perturbations at test time. Since the transformations preserve label meaning, the augmented examples add useful signal without introducing noise.
 
-        \item The main limitation is that this approach only helps with the specific transformation it was trained on. If test inputs differ in some other way like different domain, different writing style, longer texts, the augmented model offers no advantage over the baseline
+        \item The main limitation is that this approach only helps with the specific transformations it was trained on. If test inputs differ in some other way such as a different domain, writing style, or longer texts, the augmented model offers no advantage over the baseline.
     \end{itemize}
 
 \section*{Part II. Q4}
@@ -80,10 +80,10 @@ Vocabulary size (decoder targets) & 557 & 397 \\
 \toprule
 Design choice & Description \\
 \midrule
-Data processing & No special processing. The prefix \texttt{"translate English to SQL: "} is added to each NL query before tokenization. \\
+Data processing & A compact database schema is prepended to each NL query in the format \texttt{"translate English to SQL: tables: flight(...), airport(...), ... | <query>"}. This gives the model explicit knowledge of available tables and columns. \\
 Tokenization & Used the default \texttt{google-t5/t5-small} tokenizer (\texttt{T5TokenizerFast}) for both encoder and decoder. Encoder input has EOS appended. Decoder input starts with the pad token (id=0, which T5 uses as the decoder start token) followed by the SQL tokens. Decoder target is the SQL tokens followed by EOS. Padding is done dynamically each batch. \\
-Architecture & The full pretrained \texttt{google-t5/t5-small} encoder-decoder was fine-tuned end to end with no layers frozen. \\
-Hyperparameters & Learning rate: $5 \times 10^{-4}$, AdamW optimizer ($\beta_1$=0.9, $\beta_2$=0.999), weight decay: 0.01, cosine scheduler with 1 warmup epoch, batch size: 16, max 30 epochs, early stopping with patience 5 based on dev Record F1. \\
+Architecture & The full pretrained \texttt{google-t5/t5-small} encoder-decoder was fine-tuned end to end with no layers frozen. Inference uses beam search with 4 beams, \texttt{max\_new\_tokens=350}, and \texttt{early\_stopping=True}. \\
+Hyperparameters & Learning rate: $5 \times 10^{-4}$, AdamW optimizer ($\beta_1$=0.9, $\beta_2$=0.999), weight decay: 0.01, cosine scheduler with 1 warmup epoch, batch size: 16, max 25 epochs, early stopping with patience 5 based on dev Record F1. \\
 \bottomrule
 \end{tabular}
 \caption{Details of the best-performing T5 model configurations (fine-tuned)}
@@ -103,11 +103,11 @@ Hyperparameters & Learning rate: $5 \times 10^{-4}$, AdamW optimizer ($\beta_1$=
   \multicolumn{3}{l}{\textbf{Dev Results}} \\
   \midrule
   \multicolumn{3}{l}{T5 fine-tuned} \\
-  Full model & 48.50 & 68.30 \\
+  Full model & 3.22 & 76.93 \\
   \midrule
   \multicolumn{3}{l}{\textbf{Test Results}} \\
   \midrule
-  T5 fine-tuning & 46.20 & 66.10 \\
+  T5 fine-tuning & -- & -- \\
   \bottomrule
 \end{tabular}
 \caption{Development and test results. Values are percentages.}
@@ -127,17 +127,17 @@ Hyperparameters & Learning rate: $5 \times 10^{-4}$, AdamW optimizer ($\beta_1$=
     Wrong table join &
       NL: ``flights from Boston on Monday''; query omits \texttt{days} join &
       Valid SQL but missing joins for temporal constraints; returns incorrect result set &
-      34/466 queries \\
+      $\sim$25/466 queries \\
     \midrule
     Incorrect city mapping &
       NL: ``cheapest fare to Dallas''; \texttt{city\_name} filter absent &
       City names not translated into \texttt{WHERE} clause; geographic constraint ignored &
-      28/466 queries \\
+      $\sim$18/466 queries \\
     \midrule
-    Aggregation error &
-      NL: ``most expensive fare''; flat \texttt{SELECT} without \texttt{MAX} &
-      Flat SELECT instead of nested \texttt{MAX}/\texttt{MIN}; returns wrong records &
-      21/466 queries \\
+    SQL syntax error &
+      NL: complex multi-hop query; model generates malformed SQL &
+      14.16\% of outputs are syntactically invalid; returns empty record set &
+      $\sim$66/466 queries \\
     \bottomrule
   \end{tabular}
   \caption{Qualitative error analysis on the dev set for the fine-tuned T5 model.}
@@ -146,7 +146,8 @@ Hyperparameters & Learning rate: $5 \times 10^{-4}$, AdamW optimizer ($\beta_1$=
 
 \section*{Q7.}
 
-Google Drive link to model checkpoint: \texttt{https://drive.google.com/drive/u/0/folders/1kUf6WweMKfbMNSv4DvRKb0p-YPQsduu3}
+Google Drive link to model checkpoint:
+ https://drive.google.com/drive/folders/1VA0VNok0G-zsLas9mfHTShEhxeihnKVa?usp=sharing
 
 \section*{Extra Credit 2-1: T5 from Scratch}
 
@@ -160,11 +161,11 @@ Same setup as fine-tuning but with randomly initialized weights. Used a slightly
   \midrule
   \multicolumn{3}{l}{\textbf{Dev Results}} \\
   \midrule
-  T5 from scratch & 31.10 & 52.40 \\
+  T5 from scratch & XX.XX & XX.XX \\
   \midrule
   \multicolumn{3}{l}{\textbf{Test Results}} \\
   \midrule
-  T5 from scratch & 29.70 & 50.80 \\
+  T5 from scratch & XX.XX & XX.XX \\
   \bottomrule
 \end{tabular}
 \caption{Results for T5 trained from scratch.}
